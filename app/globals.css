@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties ─── */
+:root {
+  --agent-orange: #FF4E00;
+  --agent-pink:   #EC008C;
+  --agent-purple: #7B2CBF;
+  --agent-blue:   #2E6BFF;
+  --agent-teal:   #009BB9;
+}
+
+/* ─── Base Reset ─── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Dark mode body background (Tailwind dark: classes handle component-level) ─── */
+html.dark body {
+  background-color: #020617; /* slate-950 */
+  color: #f8fafc;
+}
+
+html:not(.dark) body {
+  background-color: #fdfdfd;
+  color: #0f172a;
+}
+
+/* ─── Gradient Utilities (Tailwind can't generate arbitrary gradients as classes) ─── */
+.text-gradient {
+  background: linear-gradient(135deg, var(--agent-orange), var(--agent-pink), var(--agent-purple), var(--agent-blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-gradient-agent {
+  background: linear-gradient(135deg, var(--agent-orange), var(--agent-pink), var(--agent-purple), var(--agent-blue));
+}
+
+.border-gradient-agent {
+  border-image: linear-gradient(135deg, var(--agent-orange), var(--agent-pink), var(--agent-purple), var(--agent-blue)) 1;
+}
+
+/* ─── Glass Effect ─── */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html.dark .glass-effect {
+  background: rgba(15, 23, 42, 0.7);
+}
+
+/* ─── Hover Lift ─── */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hover-lift:hover { transform: translateY(-8px); }
+
+/* ─── Floating Animation ─── */
+.floating { animation: float 4s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+
+/* ─── Custom Scrollbar ─── */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--agent-blue); border-radius: 10px; }
+html.dark .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+
+/* ─── Marquee ─── */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ─── Slow Zoom (Hero video) ─── */
+@keyframes slow-zoom {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.08); }
+}
+
+/* ─── React Datepicker overrides ─── */
+.react-datepicker {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  border: none !important;
+  border-radius: 1.5rem !important;
+}
+.react-datepicker__header {
+  background-color: white !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  border-top-left-radius: 1.5rem !important;
+  border-top-right-radius: 1.5rem !important;
+  padding-top: 1rem !important;
+}
+html.dark .react-datepicker,
+html.dark .react-datepicker__header { background-color: #1e293b !important; }
+.react-datepicker__day { color: #1e293b !important; font-weight: 600 !important; }
+html.dark .react-datepicker__day { color: #f1f5f9 !important; }
+.react-datepicker__day:hover { background-color: #f1f5f9 !important; border-radius: 0.5rem !important; }
+.react-datepicker__day--disabled { color: #cbd5e1 !important; }
+.react-datepicker__day--outside-month { color: #e2e8f0 !important; }
+.react-datepicker__day--selected,
+.react-datepicker__day--in-selecting-range,
+.react-datepicker__day--in-range {
+  background-color: #2E6BFF !important;
+  color: white !important;
+  border-radius: 0.5rem !important;
+}
+.react-datepicker__current-month {
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  font-size: 0.8rem !important;
+  color: #0f172a !important;
+}
+html.dark .react-datepicker__current-month { color: #f8fafc !important; }
+.react-datepicker__day-name {
+  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  text-transform: uppercase !important;
+  font-size: 0.6rem !important;
+}

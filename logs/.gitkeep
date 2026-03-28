@@ -1,0 +1,3 @@
+# This directory stores server-side application logs.
+# Log files (*.log) are excluded via .gitignore.
+# The directory itself is tracked so it exists on first deploy.
