@@ -4,16 +4,19 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight, Github, Chrome, Zap, ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://52.63.164.194';
+
 interface LoginProps {
   onSignUp: () => void;
   onHome: () => void;
-  onLoginSuccess?: () => void;
+  onLoginSuccess?: (user?: { name: string; email?: string | null; phone?: string }) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onSignUp, onHome, onLoginSuccess }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState('');
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -23,19 +26,38 @@ const Login: React.FC<LoginProps> = ({ onSignUp, onHome, onLoginSuccess }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setStatus('loading');
-    
-    // Simulate high-fidelity authentication sequence
-    setTimeout(() => {
+    setServerError('');
+
+    try {
+      const res = await fetch(`${AUTH_API_BASE}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus('error');
+        setServerError(data?.error ?? 'Login failed');
+        return;
+      }
+
       setStatus('success');
       setTimeout(() => {
-        onLoginSuccess?.();
+        onLoginSuccess?.({
+          ...(data?.data?.user ?? { name: formData.email || 'Traveler', email: formData.email, phone: undefined }),
+          token: data?.data?.accessToken,
+        });
       }, 1500);
-    }, 2000);
+    } catch (error) {
+      setStatus('error');
+      setServerError(error instanceof Error ? error.message : 'Network error');
+    }
   };
 
   if (status === 'success') {
@@ -146,6 +168,11 @@ const Login: React.FC<LoginProps> = ({ onSignUp, onHome, onLoginSuccess }) => {
               </span>
             </button>
           </form>
+          {serverError && (
+            <div className="mt-4 rounded-2xl bg-rose-50 border border-rose-100 p-4 text-rose-700 text-sm font-medium">
+              {serverError}
+            </div>
+          )}
 
           <div className="relative my-12">
             <div className="absolute inset-0 flex items-center">

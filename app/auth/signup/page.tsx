@@ -9,11 +9,13 @@ export default function SignUpPage() {
   const router = useRouter();
   const { isLoggedIn, user, theme, toggleTheme, logout, bookingTimer, login } = useAuth();
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (user?: { name: string; email?: string | null; phone?: string; token?: string }) => {
     login({
-      name: 'Ayush Bansal',
-      email: 'ayush.bansal@gmail.com',
+      name: user?.name ?? 'Traveler',
+      email: user?.email ?? '',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+      phone: user?.phone,
+      token: user?.token,
     });
     router.push('/');
   };

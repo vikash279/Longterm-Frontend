@@ -101,6 +101,9 @@ const ListProperty: React.FC<ListPropertyProps> = ({ onHome, onStartNow }) => {
     extraServicePhotos: {} as Record<string, string>,
     documents: [] as UploadedDocument[]
   });
+  const [listingId, setListingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'gallery' | 'category' | 'extraService', id?: string) => {
     const file = e.target.files?.[0];
@@ -137,6 +140,110 @@ const ListProperty: React.FC<ListPropertyProps> = ({ onHome, onStartNow }) => {
   const currentStepContent = stepContentMap[currentStep] ?? { title: '', subtitle: '' };
 
   const isNextButtonDisabled = (currentStep === 1 && !isPropertyDetailsValid) || (currentStep === 2 && !isRoomCategoriesValid) || (currentStep === 3 && !isAmenitiesValid) || (currentStep === 4 && !isMenuDetailsValid) || (currentStep === 5 && !isPhotosValid) || (currentStep === 6 && !isExtraServicesValid) || (currentStep === 7 && !isTransferServicesValid) || (currentStep === 8 && !isRoomsPricingValid) || (currentStep === 9 && !isUploadDocumentsValid);
+
+  const saveStepData = async (step: number) => {
+    const sendRequest = async (method: 'POST' | 'PUT', body?: unknown) => {
+      const response = await fetch('/api/v1/listings/step', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || response.statusText || 'Save failed');
+      }
+      return data;
+    };
+
+    const payload: Record<string, unknown> = {
+      step,
+      payload: {},
+    };
+
+    if (step === 1) {
+      payload.payload = {
+        name: formData.name,
+        type: formData.type,
+        rating: formData.rating,
+        address: formData.address,
+        description: formData.description,
+      };
+      if (listingId) {
+        payload.listingId = listingId;
+      }
+      const result = await sendRequest('POST', payload);
+      setListingId(result?.listing?.id ?? listingId);
+      return result;
+    }
+
+    if (!listingId) {
+      throw new Error('Listing ID is missing');
+    }
+
+    payload.listingId = listingId;
+
+    switch (step) {
+      case 2:
+        payload.payload = { roomCategories: formData.roomCategories };
+        return await sendRequest('POST', payload);
+      case 3:
+        payload.payload = { amenities: formData.amenities };
+        return await sendRequest('POST', payload);
+      case 4:
+        payload.payload = {
+          menu: formData.menu,
+          menuPricing: formData.menuPricing,
+          menuIncluded: formData.menuIncluded,
+        };
+        return await sendRequest('POST', payload);
+      case 5:
+        payload.payload = {
+          mainImage: formData.mainImage,
+          gallery: formData.gallery,
+          roomCategoryPhotos: formData.roomCategoryPhotos,
+        };
+        return await sendRequest('POST', payload);
+      case 6:
+        payload.payload = {
+          extraServices: formData.extraServices,
+          extraServicePhotos: formData.extraServicePhotos,
+        };
+        return await sendRequest('POST', payload);
+      case 7:
+        payload.payload = { transferServices: formData.transferServices };
+        return await sendRequest('POST', payload);
+      case 8:
+        payload.payload = { rooms: formData.rooms };
+        return await sendRequest('POST', payload);
+      case 9:
+        payload.payload = { documents: formData.documents };
+        return await sendRequest('POST', payload);
+      case 10:
+        payload.payload = {};
+        return await sendRequest('POST', payload);
+      default:
+        return null;
+    }
+  };
+
+  const handleNextStep = async () => {
+    if (isNextButtonDisabled || isSaving) return;
+    setApiError(null);
+    setIsSaving(true);
+
+    try {
+      await saveStepData(currentStep);
+      if (currentStep === 10) {
+        onHome();
+      } else {
+        setCurrentStep((prev) => prev + 1);
+      }
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to save step');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const benefits: Benefit[] = [
     { icon: Clock, title: "Quick Booking", desc: "45% of hosts get their first booking within a week", accent: "text-agent-blue", bg: "hover:bg-blue-50/50" },
@@ -306,17 +413,19 @@ const ListProperty: React.FC<ListPropertyProps> = ({ onHome, onStartNow }) => {
                          </button>
                          
                          <button 
-                           onClick={() => {
-                             if (isNextButtonDisabled) return;
-                             currentStep === 10 ? onHome() : setCurrentStep(prev => prev + 1);
-                           }}
-                           disabled={isNextButtonDisabled}
-                           className={`bg-gradient-agent text-white px-8 py-2 rounded-lg font-black text-[9px] uppercase tracking-[0.2em] shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center space-x-2 group/next ${isNextButtonDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                           onClick={handleNextStep}
+                           disabled={isNextButtonDisabled || isSaving}
+                           className={`bg-gradient-agent text-white px-8 py-2 rounded-lg font-black text-[9px] uppercase tracking-[0.2em] shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center space-x-2 group/next ${(isNextButtonDisabled || isSaving) ? 'opacity-60 cursor-not-allowed' : ''}`}
                          >
-                           <span>{currentStep === 10 ? 'PUBLISH LISTING' : 'NEXT STEP'}</span>
+                           <span>{isSaving ? (currentStep === 10 ? 'PUBLISHING...' : 'SAVING...') : currentStep === 10 ? 'PUBLISH LISTING' : 'NEXT STEP'}</span>
                            <ChevronRight size={14} strokeWidth={4} className="transition-transform group-hover:translate-x-1" />
                          </button>
                       </div>
+                      {apiError && (
+                        <div className="mt-3 rounded-2xl bg-rose-50 border border-rose-100 p-4 text-rose-700 text-sm font-medium">
+                          {apiError}
+                        </div>
+                      )}
                </div>
             </div>
             

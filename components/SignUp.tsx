@@ -17,17 +17,32 @@ import {
   Check 
 } from 'lucide-react';
 
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://52.63.164.194';
+
 interface SignUpProps {
   onLogin: () => void;
   onHome: () => void;
-  onLoginSuccess?: () => void;
+  onLoginSuccess?: (user?: { name: string; email?: string | null; phone?: string }) => void;
 }
+
+type AuthUser = {
+  id?: number;
+  name: string;
+  email?: string | null;
+  phone?: string;
+  role?: string;
+};
 
 const SignUp: React.FC<SignUpProps> = ({ onLogin, onHome, onLoginSuccess }) => {
   const [mobileNumber, setMobileNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [name, setName] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [copied, setCopied] = useState(false);
+  const [serverError, setServerError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -36,14 +51,113 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin, onHome, onLoginSuccess }) => {
     };
   }, []);
 
-  const handleContinue = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    
+    setServerError('');
+    setOtp(''); // Clear previous OTP
+    setResendCooldown(30); // 30 second cooldown
+
+    try {
+      const res = await fetch(`${AUTH_API_BASE}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: `+91${mobileNumber}`, name: name || 'New User' }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setServerError('Failed to resend verification code. Please try again.');
+        setResendCooldown(0);
+        return;
+      }
+
+      if (data?.data?.otp) {
+        setOtp(data.data.otp);
+      }
+    } catch (error) {
+      setServerError('Network error. Please check your connection and try again.');
+      setResendCooldown(0);
+    }
+  };
+
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobileNumber.length < 10) return;
-    setStatus('loading');
-    setTimeout(() => {
-      setStatus('success');
-      setTimeout(() => onLoginSuccess?.(), 1500);
-    }, 2000);
+    
+    if (step === 'phone') {
+      if (mobileNumber.length < 10) return;
+      setStatus('loading');
+      setServerError('');
+
+      try {
+        const res = await fetch(`${AUTH_API_BASE}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: `+91${mobileNumber}`, name: name || 'New User' }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setStatus('idle');
+          setServerError(data?.error ?? 'Failed to send verification code. Please try again.');
+          return;
+        }
+
+        setStep('otp');
+        setResendCooldown(30); // Start cooldown for resend
+        setStatus('idle');
+        if (data?.data?.otp) {
+          setOtp(data.data.otp);
+        }
+      } catch (error) {
+        setStatus('idle');
+        setServerError('Network error. Please check your connection and try again.');
+      }
+    } else if (step === 'otp') {
+      if (otp.length < 6) return;
+      setStatus('loading');
+      setServerError('');
+
+      try {
+        const res = await fetch(`${AUTH_API_BASE}/api/v1/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: `+91${mobileNumber}`,
+            otp: otp,
+            purpose: 'login',
+            name: name || 'New User',
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setStatus('idle');
+          if (data?.error?.includes('OTP') || data?.message?.includes('OTP')) {
+            setServerError('Invalid or expired verification code. Please try again.');
+          } else {
+            setServerError(data?.error ?? 'Verification failed. Please try again.');
+          }
+          return;
+        }
+
+        setStatus('success');
+        setTimeout(() => onLoginSuccess?.({
+          ...(data?.data?.user ?? { name: name || 'New User', email: null, phone: `+91${mobileNumber}` }),
+          token: data?.data?.accessToken,
+        }), 1500);
+      } catch (error) {
+        setStatus('idle');
+        setServerError('Network error. Please check your connection and try again.');
+      }
+    }
   };
 
   const handleCopyCode = () => {
@@ -87,8 +201,8 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin, onHome, onLoginSuccess }) => {
               <CheckCircle2 className="w-10 h-10 text-emerald-500" strokeWidth={3} />
             </div>
           </div>
-          <h2 className="text-3xl font-black text-slate-950 tracking-tighter mb-2">Access Granted</h2>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Re-mapping your travel network...</p>
+          <h2 className="text-3xl font-black text-slate-950 tracking-tighter mb-2">Account Created</h2>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Welcome to WanderWealth! Redirecting to login...</p>
         </div>
       </div>
     );
@@ -151,51 +265,114 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin, onHome, onLoginSuccess }) => {
             <X className="w-5 h-5" strokeWidth={3} />
           </button>
 
+          {step === 'otp' && (
+            <button 
+              onClick={() => setStep('phone')}
+              className="absolute top-8 left-8 p-2.5 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-all active:scale-90 z-20"
+            >
+              <ChevronDown className="w-5 h-5 rotate-90" strokeWidth={3} />
+            </button>
+          )}
+
           <div className="max-w-[340px] mx-auto w-full my-auto">
             <div className="mb-12 text-left">
-              <h2 className="text-[42px] font-black text-slate-950 tracking-tighter leading-[0.9] mb-3">Login/Signup</h2>
+              <h2 className="text-[42px] font-black text-slate-950 tracking-tighter leading-[0.9] mb-3">
+                {step === 'phone' ? 'Login/Signup' : 'Verify Phone'}
+              </h2>
               <div className="h-1 w-10 bg-slate-950 rounded-full"></div>
             </div>
 
             <form className="space-y-8" onSubmit={handleContinue}>
-              <div className="relative group">
-                <div className={`absolute -top-2.5 left-5 px-2 bg-white z-10 transition-colors duration-300 ${isFocused ? 'text-[#2E6BFF]' : 'text-slate-400'}`}>
-                   <span className="text-[10px] font-black uppercase tracking-widest">Mobile Number</span>
-                </div>
-                
-                <div className={`flex items-center border-2 rounded-[1.2rem] transition-all duration-300 h-16 bg-white ${
-                  isFocused ? 'border-[#2E6BFF] ring-4 ring-blue-50' : 'border-slate-200 group-hover:border-slate-300'
-                }`}>
-                  <div className="flex items-center space-x-2 px-5 border-r border-slate-100 cursor-pointer h-full hover:bg-slate-50 transition-colors shrink-0">
-                    <img 
-                      src="https://flagcdn.com/w40/in.png" 
-                      alt="India" 
-                      className="w-5 h-3.5 object-cover rounded shadow-sm" 
-                    />
-                    <span className="text-[15px] font-black text-slate-800">+91</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isFocused ? 'text-blue-600' : 'text-slate-300'}`} strokeWidth={3} />
+              {step === 'phone' ? (
+                <div className="relative group">
+                  <div className={`absolute -top-2.5 left-5 px-2 bg-white z-10 transition-colors duration-300 ${isFocused ? 'text-[#2E6BFF]' : 'text-slate-400'}`}>
+                     <span className="text-[10px] font-black uppercase tracking-widest">Mobile Number</span>
                   </div>
                   
-                  <input 
-                    type="tel"
-                    autoFocus
-                    className="flex-1 px-5 text-[18px] font-black text-slate-950 bg-transparent outline-none tracking-tight appearance-none border-none focus:ring-0 placeholder:text-slate-200"
-                    placeholder="00000 00000"
-                    value={mobileNumber}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
-                    maxLength={10}
-                    disabled={status === 'loading'}
-                  />
+                  <div className={`flex items-center border-2 rounded-[1.2rem] transition-all duration-300 h-16 bg-white ${
+                    isFocused ? 'border-[#2E6BFF] ring-4 ring-blue-50' : 'border-slate-200 group-hover:border-slate-300'
+                  }`}>
+                    <div className="flex items-center space-x-2 px-5 border-r border-slate-100 cursor-pointer h-full hover:bg-slate-50 transition-colors shrink-0">
+                      <img 
+                        src="https://flagcdn.com/w40/in.png" 
+                        alt="India" 
+                        className="w-5 h-3.5 object-cover rounded shadow-sm" 
+                      />
+                      <span className="text-[15px] font-black text-slate-800">+91</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isFocused ? 'text-blue-600' : 'text-slate-300'}`} strokeWidth={3} />
+                    </div>
+                    
+                    <input 
+                      type="tel"
+                      autoFocus
+                      className="flex-1 px-5 text-[18px] font-black text-slate-950 bg-transparent outline-none tracking-tight appearance-none border-none focus:ring-0 placeholder:text-slate-200"
+                      placeholder="00000 00000"
+                      value={mobileNumber}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => setIsFocused(false)}
+                      onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
+                      maxLength={10}
+                      disabled={status === 'loading'}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-lg font-black text-slate-950 mb-2">Enter Verification Code</h3>
+                    <p className="text-sm text-slate-400 mb-4">We've sent a 6-digit code to +91{mobileNumber}</p>
+                    <button
+                      onClick={handleResendOtp}
+                      disabled={resendCooldown > 0}
+                      className={`text-sm font-bold transition-colors ${
+                        resendCooldown > 0
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : 'text-[#2E6BFF] hover:text-blue-700'
+                      }`}
+                    >
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                    </button>
+                  </div>
+
+                  <div className="relative group">
+                    <div className="absolute -top-2.5 left-5 px-2 bg-white z-10">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-[#2E6BFF]">Verification Code</span>
+                    </div>
+                    
+                    <input 
+                      type="text"
+                      autoFocus
+                      className="w-full px-5 text-[24px] font-black text-center text-slate-950 bg-white border-2 border-[#2E6BFF] rounded-[1.2rem] h-16 outline-none tracking-widest focus:ring-4 focus:ring-blue-50 placeholder:text-slate-200"
+                      placeholder="000000"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      disabled={status === 'loading'}
+                    />
+                  </div>
+
+                  <div className="relative group">
+                    <div className="absolute -top-2.5 left-5 px-2 bg-white z-10">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Display Name (Optional)</span>
+                    </div>
+                    
+                    <input 
+                      type="text"
+                      className="w-full px-5 text-[16px] font-bold text-slate-950 bg-white border-2 border-slate-200 rounded-[1.2rem] h-14 outline-none focus:border-[#2E6BFF] focus:ring-4 focus:ring-blue-50 placeholder:text-slate-300"
+                      placeholder="Enter your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={status === 'loading'}
+                    />
+                  </div>
+                </div>
+              )}
 
               <button 
                 type="submit"
-                disabled={mobileNumber.length < 10 || status === 'loading'}
+                disabled={(step === 'phone' && mobileNumber.length < 10) || (step === 'otp' && otp.length < 6) || status === 'loading'}
                 className={`w-full py-4.5 rounded-[1.2rem] font-black text-[13px] uppercase tracking-[0.3em] transition-all transform active:scale-[0.98] relative overflow-hidden group h-16 ${
-                  mobileNumber.length >= 10 && status !== 'loading'
+                  ((step === 'phone' && mobileNumber.length >= 10) || (step === 'otp' && otp.length >= 6)) && status !== 'loading'
                   ? 'bg-slate-950 text-white shadow-xl shadow-slate-200' 
                   : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                 }`}
@@ -203,13 +380,18 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin, onHome, onLoginSuccess }) => {
                 {status === 'loading' ? (
                   <div className="flex items-center justify-center space-x-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>SYNCHRONIZING</span>
+                    <span>{step === 'phone' ? 'SENDING OTP' : 'VERIFYING'}</span>
                   </div>
                 ) : (
-                  <span className="relative z-10">CONTINUE</span>
+                  <span className="relative z-10">{step === 'phone' ? 'SEND OTP' : 'VERIFY & SIGNUP'}</span>
                 )}
               </button>
             </form>
+            {serverError && (
+              <div className="mt-4 rounded-2xl bg-rose-50 border border-rose-100 p-4 text-rose-700 text-sm font-medium text-center">
+                {serverError}
+              </div>
+            )}
 
             <div className="mt-12 text-center">
               <div className="flex items-center justify-center space-x-2 mb-5">

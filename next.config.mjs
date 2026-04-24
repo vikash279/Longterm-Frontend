@@ -7,6 +7,14 @@ const nextConfig = {
       { protocol: 'https', hostname: 'assets.mixkit.co' },
     ],
   },
+  poweredByHeader: false,
+  compress: true,
+  devIndicators: {
+    buildActivity: false,
+  },
+  experimental: {
+    serverComponentsExternalPackages: [],
+  },
 };
 
 export default nextConfig;

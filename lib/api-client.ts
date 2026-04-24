@@ -28,11 +28,21 @@ interface RequestOptions {
   headers?: Record<string, string>;
   cache?: RequestCache;
   revalidate?: number;
+  baseUrl?: string;
 }
 
 // ─────────────────────────────────────────────────────────
 // Core fetch wrapper
 // ─────────────────────────────────────────────────────────
+function getBrowserAuthToken() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem('ww-access-token');
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(
   method: HttpMethod,
   endpoint: string,
@@ -41,13 +51,15 @@ async function request<T>(
 ): Promise<ApiResponse<T>> {
   const { params, headers: extraHeaders, cache = 'no-store' } = options;
 
-  // All client requests route through /api/proxy — real upstream URL stays server-side
+  // All client requests route through /api/proxy — real upstream URL stays server-side.
   const isServer = typeof window === 'undefined';
-  const baseUrl  = isServer
-    ? (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    : '';
+  const envBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://52.63.164.194';
+  const requestBase = options.baseUrl ?? (isServer ? envBaseUrl : '');
 
-  const url = new URL(`${baseUrl}/api/proxy${endpoint}`);
+  const urlString = requestBase
+    ? `${requestBase.replace(/\/$/, '')}/api/proxy${endpoint}`
+    : `/api/proxy${endpoint}`;
+  const url = isServer ? new URL(urlString) : new URL(urlString, window.location.origin);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   }
@@ -57,6 +69,11 @@ async function request<T>(
     'X-Client-Version': '1.0.0',
     ...extraHeaders,
   };
+
+  const browserToken = getBrowserAuthToken();
+  if (browserToken && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${browserToken}`;
+  }
 
   // Add CSRF token on client (read from meta tag set by layout)
   if (!isServer && typeof document !== 'undefined') {

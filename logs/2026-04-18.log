@@ -1,0 +1,4 @@
+{"timestamp":"2026-04-18T05:45:32.276Z","level":"info","message":"Proxy entry","meta":{"ip":"::1","method":"POST","path":"/v1/auth/signup"},"context":"server"}
+{"timestamp":"2026-04-18T05:45:32.703Z","level":"warn","message":"Proxy request","meta":{"method":"POST","path":"/v1/auth/signup","status":404,"elapsed":420},"context":"server"}
+{"timestamp":"2026-04-18T05:45:42.099Z","level":"info","message":"Proxy entry","meta":{"ip":"::1","method":"POST","path":"/v1/auth/signup"},"context":"server"}
+{"timestamp":"2026-04-18T05:45:42.635Z","level":"warn","message":"Proxy request","meta":{"method":"POST","path":"/v1/auth/signup","status":404,"elapsed":534},"context":"server"}

@@ -49,16 +49,21 @@ export function middleware(req: NextRequest) {
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
   // Content Security Policy
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const connectSrc = isDevelopment
+    ? "'self' http://52.63.164.194 http://52.63.164.194:80"
+    : "'self'";
+
   res.headers.set(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com",   // 'unsafe-inline' needed for theme init script
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com",   // 'unsafe-inline' and 'unsafe-eval' needed for development
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://images.unsplash.com https://i.pravatar.cc https://assets.mixkit.co",
       "media-src 'self' https://assets.mixkit.co",
-      "connect-src 'self'",
+      `connect-src ${connectSrc}`,
       "frame-ancestors 'none'",
     ].join('; ')
   );
